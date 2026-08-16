@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/library/presentation/library_screen.dart';
+
 void main() {
   runApp(
     const ProviderScope(
@@ -17,14 +19,10 @@ class MyMusicApp extends StatelessWidget {
     return MaterialApp(
       title: 'My Music',
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('My Music'),
-        ),
-        body: const Center(
-          child: Text('My Music'),
-        ),
+      theme: ThemeData(
+        useMaterial3: true,
       ),
+      home: const LibraryScreen(),
     );
   }
 }
