@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/library_providers.dart';
-import '../providers/library_data_providers.dart'; 
+import 'widgets/song_artwork.dart';
+import '../providers/library_data_providers.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -18,9 +19,7 @@ class LibraryScreen extends ConsumerWidget {
       // 2. Wrap the conditional logic block inside an immediate-invoked execution function
       body: () {
         if (songsAsync.isLoading || artistsAsync.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (songsAsync.hasError) {
@@ -59,10 +58,11 @@ class LibraryScreen extends ConsumerWidget {
           itemCount: songs.length,
           itemBuilder: (context, index) {
             final song = songs[index];
-            final displayArtistName = artistMap[song.artistId] ?? 'Unknown artist';
+            final displayArtistName =
+                artistMap[song.artistId] ?? 'Unknown artist';
 
             return ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.music_note)),
+              leading: SongArtwork(artworkPath: song.localArtworkPath),
               title: Text(song.title),
               subtitle: Text(displayArtistName),
             );
