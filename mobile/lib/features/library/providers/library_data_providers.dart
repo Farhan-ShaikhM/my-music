@@ -1,5 +1,6 @@
 // lib/features/library/providers/library_data_providers.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile/features/library/providers/library_providers.dart';
 import '../../../data/database/database_service.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/artist_repository.dart';
@@ -8,7 +9,7 @@ import '../repositories/sqlite_album_repository.dart';
 import '../repositories/sqlite_artist_repository.dart';
 import '../repositories/sqlite_song_repository.dart';
 import '../../../data/files/local_file_service.dart';
-import '../../../services/music_import_service.dart';
+import '../services/music_import_service.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
 
@@ -35,5 +36,6 @@ final musicImportServiceProvider = Provider<MusicImportService>((ref) {
     artistRepository: ref.watch(artistRepositoryProvider),
     albumRepository: ref.watch(albumRepositoryProvider),
     localFileService: ref.watch(localFileServiceProvider),
+    audioFingerprintService: ref.watch(audioFingerprintServiceProvider),
   );
 });

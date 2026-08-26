@@ -11,6 +11,7 @@ class Song {
   final String? cloudAudioReference;
   final String? cloudLyricsReference;
   final String? localAudioPath;
+  final String? audioFingerprint;
   final String? localArtworkPath;
   final String? localLyricsPath;
   final String? downloadState;
@@ -35,6 +36,7 @@ class Song {
     this.downloadState,
     required this.createdAt,
     required this.updatedAt,
+    this.audioFingerprint,
   });
 
   Map<String, dynamic> toMap() {
@@ -51,6 +53,7 @@ class Song {
       'cloud_audio_reference': cloudAudioReference,
       'cloud_lyrics_reference': cloudLyricsReference,
       'local_audio_path': localAudioPath,
+      'audio_fingerprint': audioFingerprint,
       'local_artwork_path': localArtworkPath,
       'local_lyrics_path': localLyricsPath,
       'download_state': downloadState,
@@ -73,6 +76,7 @@ class Song {
       cloudAudioReference: map['cloud_audio_reference'] as String?,
       cloudLyricsReference: map['cloud_lyrics_reference'] as String?,
       localAudioPath: map['local_audio_path'] as String?,
+      audioFingerprint: map['audio_fingerprint'] as String?,
       localArtworkPath: map['local_artwork_path'] as String?,
       localLyricsPath: map['local_lyrics_path'] as String?,
       downloadState: map['download_state'] as String?,

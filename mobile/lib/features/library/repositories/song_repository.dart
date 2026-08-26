@@ -10,4 +10,14 @@ abstract class SongRepository {
   Future<void> updateSong(Song song);
 
   Future<void> deleteSong(String id);
+
+  Future<Song?> getSongByLocalPath(String localAudioPath);
+
+  Future<Song?> getSongByAudioFingerprint(String fingerprint);
+
+  Future<void> updateAudioFingerprint(String songId, String fingerprint);
+
+  Future<List<Song>> getSongsByAudioFingerprint(String fingerprint);
+
+  Future<void> updateLocalArtworkPath(String songId, String localArtworkPath);
 }

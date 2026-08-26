@@ -79,6 +79,14 @@ class LocalFileService {
     await sourceFile.copy(destinationPath);
   }
 
+  Future<void> deleteMusicFile(String filePath) async {
+  final file = File(filePath);
+
+  if (await file.exists()) {
+    await file.delete();
+  }
+}
+
   Future<String> getArtworkFilePath(
   String songId,
   String extension,

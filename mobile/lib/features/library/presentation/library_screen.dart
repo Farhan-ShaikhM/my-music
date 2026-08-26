@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/library_providers.dart';
 import 'widgets/song_artwork.dart';
 import '../providers/library_data_providers.dart';
+import '../services/duplicate_song_exception.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -16,6 +17,7 @@ class LibraryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('My Music')),
+      
       // 2. Wrap the conditional logic block inside an immediate-invoked execution function
       body: () {
         if (songsAsync.isLoading || artistsAsync.isLoading) {
@@ -86,6 +88,16 @@ class LibraryScreen extends ConsumerWidget {
                 ),
               );
             }
+          } on DuplicateSongException catch (error) {
+            if (!context.mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '"${error.existingSong.title}" is already in your library.',
+                ),
+              ),
+            );
           } catch (error) {
             if (!context.mounted) return;
 

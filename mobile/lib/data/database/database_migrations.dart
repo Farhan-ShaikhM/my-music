@@ -18,6 +18,16 @@ class DatabaseMigrations {
       await _createAlbumsTable(db);
       await _createGenresTable(db);
     }
+    if (oldVersion < 3) {
+      // Safely add audio_fingerprint if migrating from v1 or v2
+      try {
+        await db.execute(
+          'ALTER TABLE songs ADD COLUMN audio_fingerprint TEXT',
+        );
+      } catch (e) {
+        // Column might already exist depending on previous testing, ignore safely
+      }
+    }
   }
 
   static Future<void> _createArtistsTable(Database db) async {
@@ -70,6 +80,7 @@ class DatabaseMigrations {
         cloud_audio_reference TEXT,
         cloud_lyrics_reference TEXT,
         local_audio_path TEXT,
+        audio_fingerprint TEXT, 
         local_artwork_path TEXT,
         local_lyrics_path TEXT,
         download_state TEXT,
