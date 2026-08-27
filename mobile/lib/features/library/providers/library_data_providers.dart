@@ -10,12 +10,22 @@ import '../repositories/sqlite_artist_repository.dart';
 import '../repositories/sqlite_song_repository.dart';
 import '../../../data/files/local_file_service.dart';
 import '../services/music_import_service.dart';
+import '../repositories/song_artist_repository.dart';
+import '../repositories/sqlite_song_artist_repository.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
 
 final songRepositoryProvider = Provider<SongRepository>((ref) {
   final databaseService = ref.watch(databaseServiceProvider);
   return SqliteSongRepository(databaseService);
+});
+
+final songArtistRepositoryProvider =
+    Provider<SongArtistRepository>((ref) {
+  final databaseService =
+      ref.watch(databaseServiceProvider);
+
+  return SqliteSongArtistRepository(databaseService);
 });
 
 final artistRepositoryProvider = Provider<ArtistRepository>((ref) {
@@ -37,5 +47,7 @@ final musicImportServiceProvider = Provider<MusicImportService>((ref) {
     albumRepository: ref.watch(albumRepositoryProvider),
     localFileService: ref.watch(localFileServiceProvider),
     audioFingerprintService: ref.watch(audioFingerprintServiceProvider),
+    songArtistRepository:
+    ref.watch(songArtistRepositoryProvider),
   );
 });

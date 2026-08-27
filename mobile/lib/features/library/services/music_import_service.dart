@@ -1,22 +1,21 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 
+import '../../../../../data/files/audio_fingerprint_service.dart';
 import '../../../../../data/files/local_file_service.dart';
-import '../models/artist.dart';
 import '../models/album.dart';
+import '../models/artist.dart';
+import '../models/import_song_draft.dart';
 import '../models/song.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/artist_repository.dart';
+import '../repositories/song_artist_repository.dart';
 import '../repositories/song_repository.dart';
-
-import 'dart:typed_data';
-
-import '../models/import_song_draft.dart';
 import 'duplicate_song_exception.dart';
-import '../../../../../data/files/audio_fingerprint_service.dart';
 
 class MusicImportService {
   final SongRepository songRepository;
@@ -24,6 +23,7 @@ class MusicImportService {
   final AlbumRepository albumRepository;
   final LocalFileService localFileService;
   final AudioFingerprintService audioFingerprintService;
+  final SongArtistRepository songArtistRepository;
 
   MusicImportService({
     required this.songRepository,
@@ -31,7 +31,21 @@ class MusicImportService {
     required this.albumRepository,
     required this.localFileService,
     required this.audioFingerprintService,
+    required this.songArtistRepository,
   });
+
+  List<String> _splitArtistNames(String? value) {
+    if (value == null) {
+      return [];
+    }
+
+    return value
+        .split(',')
+        .map((artist) => artist.trim())
+        .where((artist) => artist.isNotEmpty)
+        .toSet()
+        .toList();
+  }
 
   Future<String?> extractAndSaveArtworkForSong(Song song) async {
     final audioPath = song.localAudioPath;
@@ -104,7 +118,8 @@ class MusicImportService {
 
     final title = _resolveTitle(metadata.title, sourcePath);
 
-    final artistName = _normalizeText(metadata.artist);
+    final artistNames = _splitArtistNames(metadata.artist);
+
     final albumName = _normalizeText(metadata.album);
 
     Uint8List? artworkBytes;
@@ -120,7 +135,7 @@ class MusicImportService {
     return ImportSongDraft(
       sourcePath: sourcePath,
       title: title,
-      artistName: artistName,
+      artistNames: artistNames,
       albumName: albumName,
       trackNumber: metadata.trackNumber,
       discNumber: metadata.discNumber,
@@ -150,22 +165,30 @@ class MusicImportService {
 
     final title = _resolveTitle(metadata.title, sourcePath);
 
-    final artistName = _normalizeText(metadata.artist);
+    final artistNames = _splitArtistNames(metadata.artist);
+
     final albumName = _normalizeText(metadata.album);
 
-    Artist? artist;
+    final artists = <Artist>[];
 
-    if (artistName != null) {
-      artist = await _findOrCreateArtist(artistName);
+    for (final name in artistNames) {
+      final existingOrCreated = await _findOrCreateArtist(name);
+      artists.add(existingOrCreated);
     }
+
+    final Artist? primaryArtist = artists.isNotEmpty ? artists.first : null;
 
     Album? album;
 
     if (albumName != null) {
-      album = await _findOrCreateAlbum(albumName, artist?.id);
+      album = await _findOrCreateAlbum(albumName, primaryArtist?.id);
     }
 
-    final songId = _createId(sourcePath, title, artistName);
+    final songId = _createId(
+      sourcePath,
+      title,
+      primaryArtist?.name,
+    );
 
     final extension = path.extension(sourcePath).replaceFirst('.', '');
 
@@ -202,7 +225,7 @@ class MusicImportService {
     final song = Song(
       id: songId,
       title: title,
-      artistId: artist?.id,
+      artistId: primaryArtist?.id,
       albumId: album?.id,
       trackNumber: metadata.trackNumber,
       discNumber: metadata.discNumber,
@@ -214,7 +237,7 @@ class MusicImportService {
       cloudAudioReference: null,
       cloudLyricsReference: null,
       localAudioPath: localAudioPath,
-      audioFingerprint: fingerprint, // <-- Added here
+      audioFingerprint: fingerprint,
       localArtworkPath: localArtworkPath,
       localLyricsPath: null,
       downloadState: 'available_offline',
@@ -224,12 +247,123 @@ class MusicImportService {
 
     await songRepository.insertSong(song);
 
+    for (final artist in artists) {
+      await songArtistRepository.addArtistToSong(
+        songId: song.id,
+        artistId: artist.id,
+      );
+    }
+
     return song;
   }
 
   Future<reader.AudioMetadata> readMetadata(String filePath) async {
     final file = File(filePath);
     return reader.readMetadata(file, getImage: true);
+  }
+
+  Future<Song> importDraft(ImportSongDraft draft) async {
+    final fingerprint = await audioFingerprintService.calculateFingerprint(
+      draft.sourcePath,
+    );
+
+    final existingSong = await songRepository.getSongByAudioFingerprint(
+      fingerprint,
+    );
+
+    if (existingSong != null) {
+      throw DuplicateSongException(existingSong);
+    }
+
+    final artists = <Artist>[];
+
+    for (final name in draft.artistNames) {
+      if (name.trim().isNotEmpty) {
+        final existingOrCreated = await _findOrCreateArtist(name.trim());
+        artists.add(existingOrCreated);
+      }
+    }
+
+    final Artist? primaryArtist = artists.isNotEmpty ? artists.first : null;
+
+    Album? album;
+
+    if (draft.albumName != null && draft.albumName!.trim().isNotEmpty) {
+      album = await _findOrCreateAlbum(
+        draft.albumName!.trim(),
+        primaryArtist?.id,
+      );
+    }
+
+    final songId = _createId(
+      draft.sourcePath,
+      draft.title,
+      primaryArtist?.name,
+    );
+
+    final extension = path.extension(draft.sourcePath).replaceFirst('.', '');
+
+    final localAudioPath = await localFileService.getMusicFilePath(
+      songId,
+      extension,
+    );
+
+    await localFileService.copyMusicFile(
+      sourcePath: draft.sourcePath,
+      destinationPath: localAudioPath,
+    );
+
+    String? localArtworkPath;
+
+    if (draft.artworkBytes != null && draft.artworkBytes!.isNotEmpty) {
+      final artworkExtension = _extensionFromMimeType(
+        draft.artworkMimeType ?? 'image/jpeg',
+      );
+
+      localArtworkPath = await localFileService.getArtworkFilePath(
+        songId,
+        artworkExtension,
+      );
+
+      await localFileService.saveArtwork(
+        bytes: draft.artworkBytes!,
+        destinationPath: localArtworkPath,
+      );
+    }
+
+    final now = DateTime.now();
+
+    final song = Song(
+      id: songId,
+      title: draft.title,
+      artistId: primaryArtist?.id,
+      albumId: album?.id,
+      trackNumber: draft.trackNumber,
+      discNumber: draft.discNumber,
+      durationMs: draft.durationMs,
+      genre: draft.genre,
+      artworkReference: null,
+      cloudAudioReference: null,
+      cloudLyricsReference: null,
+      localAudioPath: localAudioPath,
+      audioFingerprint: fingerprint,
+      localArtworkPath: localArtworkPath,
+      localLyricsPath: null,
+      downloadState: 'available_offline',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await songRepository.insertSong(song);
+
+    for (final artist in artists) {
+      await songArtistRepository.addArtistToSong(
+        songId: song.id,
+        artistId: artist.id,
+      );
+    }
+
+    return song;
   }
 
   Future<Artist> _findOrCreateArtist(String name) async {

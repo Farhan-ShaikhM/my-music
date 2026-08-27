@@ -1,10 +1,13 @@
 import 'dart:typed_data';
 
+
 class ImportSongDraft {
   final String sourcePath;
 
   String title;
-  String? artistName;
+
+  List<String> artistNames;
+
   String? albumName;
 
   final int? trackNumber;
@@ -18,7 +21,7 @@ class ImportSongDraft {
   ImportSongDraft({
     required this.sourcePath,
     required this.title,
-    this.artistName,
+    this.artistNames = const [],
     this.albumName,
     this.trackNumber,
     this.discNumber,

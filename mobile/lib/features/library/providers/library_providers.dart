@@ -59,3 +59,19 @@ final libraryArtistsProvider = FutureProvider<List<Artist>>((ref) async {
   final repository = ref.watch(artistRepositoryProvider);
   return repository.getArtists();
 });
+final songArtistsProvider = FutureProvider.family<List<Artist>, String>((ref, songId) async {
+  final songArtistRepo = ref.watch(songArtistRepositoryProvider);
+  final artistRepo = ref.watch(artistRepositoryProvider);
+
+  final artistIds = await songArtistRepo.getArtistIdsForSong(songId);
+  final artists = <Artist>[];
+
+  for (final id in artistIds) {
+    final artist = await artistRepo.getArtistById(id);
+    if (artist != null) {
+      artists.add(artist);
+    }
+  }
+
+  return artists;
+});

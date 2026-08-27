@@ -6,30 +6,60 @@ class DatabaseMigrations {
     await _createAlbumsTable(db);
     await _createGenresTable(db);
     await _createSongsTable(db);
+    await db.execute('''
+      CREATE TABLE song_artists (
+        song_id TEXT NOT NULL,
+        artist_id TEXT NOT NULL,
+        PRIMARY KEY (song_id, artist_id),
+        FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+        FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
-  static Future<void> onUpgrade(
-    Database db,
-    int oldVersion,
-    int newVersion,
-  ) async {
-    if (oldVersion < 2) {
-      await _createArtistsTable(db);
-      await _createAlbumsTable(db);
-      await _createGenresTable(db);
-    }
-    if (oldVersion < 3) {
-      // Safely add audio_fingerprint if migrating from v1 or v2
-      try {
-        await db.execute(
-          'ALTER TABLE songs ADD COLUMN audio_fingerprint TEXT',
-        );
-      } catch (e) {
-        // Column might already exist depending on previous testing, ignore safely
-      }
+ static Future<void> onUpgrade(
+  Database db,
+  int oldVersion,
+  int newVersion,
+) async {
+  if (oldVersion < 2) {
+    await _createArtistsTable(db);
+    await _createAlbumsTable(db);
+    await _createGenresTable(db);
+  }
+  if (oldVersion < 3) {
+    try {
+      await db.execute('ALTER TABLE songs ADD COLUMN audio_fingerprint TEXT');
+    } catch (e) {
+      // Column might already exist
     }
   }
-
+  if (oldVersion < 4) {
+    await db.execute('''
+      CREATE TABLE song_artists (
+        song_id TEXT NOT NULL,
+        artist_id TEXT NOT NULL,
+        PRIMARY KEY (song_id, artist_id),
+        FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE,
+        FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
+      )
+    ''');
+  }
+  if (oldVersion < 5) {
+    // Backfill legacy artist relationships from the old single-artist column
+    await db.execute('''
+      INSERT OR IGNORE INTO song_artists (
+        song_id,
+        artist_id
+      )
+      SELECT
+        id,
+        artist_id
+      FROM songs
+      WHERE artist_id IS NOT NULL
+    ''');
+  }
+}
   static Future<void> _createArtistsTable(Database db) async {
     await db.execute('''
       CREATE TABLE artists (

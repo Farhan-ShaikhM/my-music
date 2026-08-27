@@ -5,7 +5,7 @@ import 'database_migrations.dart';
 
 class DatabaseService {
   static const String _databaseName = 'my_music.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 5;
 
   final String? databasePath;
 
