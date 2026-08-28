@@ -263,11 +263,25 @@ class MusicImportService {
   }
 
   Future<Song> importDraft(ImportSongDraft draft) async {
-    final fingerprint = await audioFingerprintService.calculateFingerprint(
+  String? localAudioPath;
+  String? localArtworkPath;
+
+  try {
+    // --------------------------------
+    // 1. Calculate fingerprint
+    // --------------------------------
+
+    final fingerprint =
+        await audioFingerprintService.calculateFingerprint(
       draft.sourcePath,
     );
 
-    final existingSong = await songRepository.getSongByAudioFingerprint(
+    // --------------------------------
+    // 2. Check duplicate
+    // --------------------------------
+
+    final existingSong =
+        await songRepository.getSongByAudioFingerprint(
       fingerprint,
     );
 
@@ -275,25 +289,45 @@ class MusicImportService {
       throw DuplicateSongException(existingSong);
     }
 
+    // --------------------------------
+    // 3. Find/create artists
+    // --------------------------------
+
     final artists = <Artist>[];
 
     for (final name in draft.artistNames) {
-      if (name.trim().isNotEmpty) {
-        final existingOrCreated = await _findOrCreateArtist(name.trim());
-        artists.add(existingOrCreated);
+      final normalizedName = name.trim();
+
+      if (normalizedName.isEmpty) {
+        continue;
       }
+
+      final existingOrCreated =
+          await _findOrCreateArtist(normalizedName);
+
+      artists.add(existingOrCreated);
     }
 
-    final Artist? primaryArtist = artists.isNotEmpty ? artists.first : null;
+    final Artist? primaryArtist =
+        artists.isNotEmpty ? artists.first : null;
+
+    // --------------------------------
+    // 4. Find/create album
+    // --------------------------------
 
     Album? album;
 
-    if (draft.albumName != null && draft.albumName!.trim().isNotEmpty) {
+    if (draft.albumName != null &&
+        draft.albumName!.trim().isNotEmpty) {
       album = await _findOrCreateAlbum(
         draft.albumName!.trim(),
         primaryArtist?.id,
       );
     }
+
+    // --------------------------------
+    // 5. Create song ID
+    // --------------------------------
 
     final songId = _createId(
       draft.sourcePath,
@@ -301,9 +335,16 @@ class MusicImportService {
       primaryArtist?.name,
     );
 
-    final extension = path.extension(draft.sourcePath).replaceFirst('.', '');
+    // --------------------------------
+    // 6. Copy audio
+    // --------------------------------
 
-    final localAudioPath = await localFileService.getMusicFilePath(
+    final extension = path
+        .extension(draft.sourcePath)
+        .replaceFirst('.', '');
+
+    localAudioPath =
+        await localFileService.getMusicFilePath(
       songId,
       extension,
     );
@@ -313,14 +354,19 @@ class MusicImportService {
       destinationPath: localAudioPath,
     );
 
-    String? localArtworkPath;
+    // --------------------------------
+    // 7. Save artwork
+    // --------------------------------
 
-    if (draft.artworkBytes != null && draft.artworkBytes!.isNotEmpty) {
-      final artworkExtension = _extensionFromMimeType(
+    if (draft.artworkBytes != null &&
+        draft.artworkBytes!.isNotEmpty) {
+      final artworkExtension =
+          _extensionFromMimeType(
         draft.artworkMimeType ?? 'image/jpeg',
       );
 
-      localArtworkPath = await localFileService.getArtworkFilePath(
+      localArtworkPath =
+          await localFileService.getArtworkFilePath(
         songId,
         artworkExtension,
       );
@@ -330,6 +376,10 @@ class MusicImportService {
         destinationPath: localArtworkPath,
       );
     }
+
+    // --------------------------------
+    // 8. Create Song
+    // --------------------------------
 
     final now = DateTime.now();
 
@@ -354,7 +404,15 @@ class MusicImportService {
       updatedAt: now,
     );
 
+    // --------------------------------
+    // 9. Insert song
+    // --------------------------------
+
     await songRepository.insertSong(song);
+
+    // --------------------------------
+    // 10. Link all artists
+    // --------------------------------
 
     for (final artist in artists) {
       await songArtistRepository.addArtistToSong(
@@ -363,9 +421,38 @@ class MusicImportService {
       );
     }
 
-    return song;
-  }
+    // --------------------------------
+    // 11. Everything succeeded
+    // --------------------------------
 
+    return song;
+  } catch (error) {
+    // --------------------------------
+    // Cleanup files created by this
+    // import attempt
+    // --------------------------------
+
+    if (localArtworkPath != null) {
+      final artworkFile = File(localArtworkPath);
+
+      if (await artworkFile.exists()) {
+        await artworkFile.delete();
+      }
+    }
+
+    if (localAudioPath != null) {
+      final audioFile = File(localAudioPath);
+
+      if (await audioFile.exists()) {
+        await audioFile.delete();
+      }
+    }
+
+    // Keep the original error so the UI
+    // can display the actual reason.
+    rethrow;
+  }
+}
   Future<Artist> _findOrCreateArtist(String name) async {
     final artists = await artistRepository.getArtists();
 
