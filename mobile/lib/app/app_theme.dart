@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   /// Red accent used for the playing song, Shuffle pill and Cancel.
-  static const accent = Color(0xFFE5383B);
-  static const textPrimary = Color(0xFF111111);
-  static const textSecondary = Color(0xFF8A8A8E);
-  static const card = Color(0xFFF4F4F6);
-  static const divider = Color(0xFFE6E6EA);
+  static const accent = Color(0xFFE5302F);
+  static const textPrimary = Color(0xFF1C1C1E);
+  static const textSecondary = Color(0xFF8E8E93);
+  static const card = Color(0xFFF5F5F7);
+  static const miniPlayer = Color(0xFFF0F0F3);
+  static const divider = Color(0xFFE5E5EA);
 }
 
 /// Gradient pairs for songs without artwork. Each song always gets the same

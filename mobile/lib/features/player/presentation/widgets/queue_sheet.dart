@@ -15,10 +15,10 @@ Future<void> showQueueSheet(BuildContext context) {
     isScrollControlled: true,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (_) => const FractionallySizedBox(
-      heightFactor: 0.96,
+      heightFactor: 1,
       child: _QueueSheet(),
     ),
   );
@@ -36,27 +36,41 @@ class _QueueSheet extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // "Cancel" in red, 16sp, 16dp from the left.
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              child: const Text('Cancel'),
             ),
           ),
-          const TabBar(
-            labelColor: AppColors.textPrimary,
-            unselectedLabelColor: AppColors.textSecondary,
-            labelStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            unselectedLabelStyle: TextStyle(fontSize: 18),
-            indicatorColor: AppColors.textPrimary,
-            indicatorSize: TabBarIndicatorSize.label,
-            indicatorWeight: 3,
-            dividerColor: Colors.transparent,
-            tabs: [Tab(text: 'Queue'), Tab(text: 'History')],
+          const SizedBox(height: 22),
+          const SizedBox(
+            height: 40,
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.center,
+              labelPadding: EdgeInsets.symmetric(horizontal: 38),
+              labelColor: AppColors.textPrimary,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+              unselectedLabelStyle:
+                  TextStyle(fontSize: 17, fontWeight: FontWeight.w400),
+              indicator: UnderlineTabIndicator(
+                borderSide: BorderSide(width: 2.5, color: AppColors.textPrimary),
+                borderRadius: BorderRadius.all(Radius.circular(2)),
+              ),
+              indicatorSize: TabBarIndicatorSize.label,
+              dividerColor: Colors.transparent,
+              tabs: [Tab(text: 'Queue'), Tab(text: 'History')],
+            ),
           ),
           const Expanded(
             child: TabBarView(children: [_QueueTab(), _HistoryTab()]),
@@ -91,7 +105,7 @@ class _QueueTab extends ConsumerWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          padding: const EdgeInsets.fromLTRB(16, 18, 4, 6),
           child: Row(
             children: [
               InkWell(
@@ -100,20 +114,21 @@ class _QueueTab extends ConsumerWidget {
                 child: Row(
                   children: [
                     Container(
-                      width: 34,
-                      height: 34,
+                      width: 24,
+                      height: 24,
                       decoration: const BoxDecoration(
                         color: AppColors.accent,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(queue.mode.icon, color: Colors.white, size: 20),
+                      child: Icon(queue.mode.icon, color: Colors.white, size: 15),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Text(
                       queue.mode.label,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -122,13 +137,14 @@ class _QueueTab extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 '${queue.songs.length} track(s)',
-                style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
+                style: const TextStyle(fontSize: 17, color: Color(0xFFB0B0B5)),
               ),
               const Spacer(),
               IconButton(
                 tooltip: 'Clear queue',
-                iconSize: 28,
-                icon: const Icon(Icons.delete_outline_rounded),
+                iconSize: 24,
+                color: AppColors.textPrimary,
+                icon: const Icon(Icons.delete_outline),
                 onPressed: () async {
                   await player.clearQueue();
                   if (context.mounted) Navigator.pop(context);
@@ -197,16 +213,18 @@ class _QueueRow extends ConsumerWidget {
       color: Colors.white,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+        child: SizedBox(
+          height: 71,
           child: Row(
             children: [
+              const SizedBox(width: 16),
               ArtworkImage(
                 artworkPath: song.localArtworkPath,
                 seedId: song.id,
                 size: 56,
+                borderRadius: 8,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,19 +233,19 @@ class _QueueRow extends ConsumerWidget {
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 16, color: titleColor),
+                      style: TextStyle(fontSize: 16, height: 1.25, color: titleColor),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.smartphone_outlined, size: 13, color: subColor),
-                        const SizedBox(width: 4),
+                        Icon(Icons.smartphone_outlined, size: 11, color: subColor),
+                        const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             subtitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, color: subColor),
+                            style: TextStyle(fontSize: 14, height: 1.2, color: subColor),
                           ),
                         ),
                       ],
@@ -239,17 +257,17 @@ class _QueueRow extends ConsumerWidget {
                 tooltip: 'Remove',
                 onPressed: onRemove,
                 icon: const CircleAvatar(
-                  radius: 11,
-                  backgroundColor: Color(0xFFD9D9DE),
-                  child: Icon(Icons.close_rounded, size: 15, color: Colors.white),
+                  radius: 9,
+                  backgroundColor: Color(0xFFDCDCE0),
+                  child: Icon(Icons.close_rounded, size: 12, color: Colors.white),
                 ),
               ),
               if (canReorder)
                 ReorderableDragStartListener(
                   index: index,
                   child: const Padding(
-                    padding: EdgeInsets.all(10),
-                    child: Icon(Icons.drag_handle_rounded, color: Color(0xFFBDBDC2)),
+                    padding: EdgeInsets.fromLTRB(6, 10, 16, 10),
+                    child: Icon(Icons.drag_handle, size: 24, color: Color(0xFFC4C4C8)),
                   ),
                 )
               else

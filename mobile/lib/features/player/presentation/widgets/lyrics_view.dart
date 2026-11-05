@@ -145,52 +145,74 @@ class _NoLyrics extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final faded = Colors.white.withValues(alpha: 0.55);
+    final faded = Colors.white.withValues(alpha: 0.45);
 
+    // "No Lyric Yet" in the middle, then the left-aligned underlined link,
+    // "or", and a 44dp pill button, as in the reference.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Spacer(flex: 6),
+          Text(
+            'No Lyric Yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: faded, fontSize: 16),
+          ),
           const Spacer(flex: 5),
-          Text('No Lyric Yet', style: TextStyle(color: faded, fontSize: 20)),
-          const Spacer(flex: 4),
           GestureDetector(
             onTap: () => _explainAutoMatch(context),
             child: const Text(
               'How to automatically match lyric files to songs',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 16,
+                height: 1.25,
                 decoration: TextDecoration.underline,
                 decorationColor: Colors.white,
               ),
             ),
           ),
-          const SizedBox(height: 18),
-          Text('or', style: TextStyle(color: faded, fontSize: 18)),
-          const SizedBox(height: 18),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.18),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 18),
-              shape: const StadiumBorder(),
-              textStyle: const TextStyle(fontSize: 17),
-            ),
-            onPressed: () async {
-              try {
-                final added =
-                    await ref.read(libraryActionsProvider).pickLyricsFor(song);
-                if (added && context.mounted) {
-                  showMessage(context, 'Lyrics added');
-                }
-              } catch (error) {
-                if (context.mounted) showMessage(context, '$error');
-              }
-            },
-            child: const Text('Manually specify lyric file'),
+          const SizedBox(height: 22),
+          Text(
+            'or',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: faded, fontSize: 16),
           ),
-          const Spacer(flex: 3),
+          const SizedBox(height: 18),
+          Center(
+            child: SizedBox(
+              height: 44,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.15),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                onPressed: () async {
+                  try {
+                    final added = await ref
+                        .read(libraryActionsProvider)
+                        .pickLyricsFor(song);
+                    if (added && context.mounted) {
+                      showMessage(context, 'Lyrics added');
+                    }
+                  } catch (error) {
+                    if (context.mounted) showMessage(context, '$error');
+                  }
+                },
+                child: const Text('Manually specify lyric file'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 50),
         ],
       ),
     );

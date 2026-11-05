@@ -116,7 +116,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       children: [
                         Expanded(child: LyricsView(song: song)),
                         const MiniPlayer(onDark: true),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 28),
                       ],
                     ),
                   ],
@@ -141,41 +141,46 @@ class _TopBar extends ConsumerWidget {
     required this.song,
   });
 
+  /// 56dp bar: chevron, a 150x29dp COVER/LYRIC switch, more button.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+    return SizedBox(
+      height: 60,
       child: Row(
         children: [
+          const SizedBox(width: 4),
           IconButton(
             tooltip: 'Close',
-            iconSize: 34,
+            iconSize: 30,
             color: Colors.white,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            icon: const Icon(Icons.keyboard_arrow_down),
             onPressed: () => Navigator.pop(context),
           ),
           const Spacer(),
           Container(
-            padding: const EdgeInsets.all(4),
+            width: 150,
+            height: 29,
+            padding: const EdgeInsets.all(1.5),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(30),
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(15),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _pill('COVER', 0),
-                _pill('LYRIC', 1),
+                Expanded(child: _pill('COVER', 0)),
+                Expanded(child: _pill('LYRIC', 1)),
               ],
             ),
           ),
           const Spacer(),
           IconButton(
             tooltip: 'More',
+            iconSize: 24,
             color: Colors.white,
-            icon: const Icon(Icons.more_vert_rounded),
+            icon: const Icon(Icons.more_vert),
             onPressed: () => _showMoreMenu(context, ref, song),
           ),
+          const SizedBox(width: 4),
         ],
       ),
     );
@@ -188,20 +193,19 @@ class _TopBar extends ConsumerWidget {
       onTap: () => onSelect(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 100,
-        padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
-          borderRadius: BorderRadius.circular(26),
+          color: selected
+              ? Colors.white.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: selected ? 1 : 0.6),
-            fontSize: 16,
+            color: Colors.white.withValues(alpha: selected ? 1 : 0.55),
+            fontSize: 12.5,
             fontWeight: FontWeight.w500,
-            letterSpacing: 0.3,
           ),
         ),
       ),
@@ -336,6 +340,9 @@ class _TopBar extends ConsumerWidget {
   }
 }
 
+/// COVER page. Measured on a 360dp-wide screen: 311dp card with 20dp
+/// corners, 211dp record, 27sp bold title, 16sp artist, 3dp seek track
+/// with a 16dp thumb, five controls on equal 72dp slots.
 class _CoverPage extends ConsumerWidget {
   final Song song;
 
@@ -351,67 +358,53 @@ class _CoverPage extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // The card is as wide as the screen minus 24dp each side, but
+        // shrinks on short screens so everything still fits.
         final cardSize = (constraints.maxWidth - 48)
-            .clamp(0.0, constraints.maxHeight * 0.52)
+            .clamp(0.0, constraints.maxHeight - 290)
             .toDouble();
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              Center(
-                child: Container(
-                  width: cardSize,
-                  height: cardSize,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(36),
-                  ),
-                  alignment: Alignment.center,
-                  child: VinylDisc(
-                    spinning: playing,
-                    artworkPath: song.localArtworkPath,
-                    size: cardSize * 0.68,
-                  ),
-                ),
+        return Column(
+          children: [
+            const SizedBox(height: 22),
+            Container(
+              width: cardSize,
+              height: cardSize,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const Spacer(flex: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              alignment: Alignment.center,
+              child: VinylDisc(
+                spinning: playing,
+                artworkPath: song.localArtworkPath,
+                size: cardSize * 0.68,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 4),
+              child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 27,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 24),
                   IconButton(
                     tooltip: 'Add to playlist',
-                    iconSize: 32,
+                    iconSize: 26,
                     color: Colors.white,
-                    icon: const Icon(Icons.playlist_add_rounded),
+                    icon: const Icon(Icons.download_outlined),
                     onPressed: () {
                       final messenger = ScaffoldMessenger.of(context);
                       showAddToPlaylistDialog(context, ref, song, (text) {
@@ -419,27 +412,41 @@ class _CoverPage extends ConsumerWidget {
                       });
                     },
                   ),
+                  const SizedBox(width: 6),
                   IconButton(
                     tooltip: isFavorite ? 'Remove from Favorites' : 'Favorite',
-                    iconSize: 32,
-                    color: isFavorite ? const Color(0xFFFF4D67) : Colors.white,
+                    iconSize: 28,
+                    color: isFavorite ? const Color(0xFFFF4F6A) : Colors.white,
                     icon: Icon(
-                      isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
                     ),
                     onPressed: () =>
                         ref.read(favoritesProvider.notifier).toggle(song.id),
                   ),
                 ],
               ),
-              const Spacer(flex: 1),
-              const _SeekBar(),
-              const Spacer(flex: 1),
-              const _Controls(),
-              const Spacer(flex: 2),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 52),
+            const _SeekBar(),
+            const SizedBox(height: 8),
+            const _Controls(),
+            const Spacer(),
+          ],
         );
       },
     );
@@ -463,46 +470,64 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
     final duration = ref.watch(playerDurationProvider).value ?? Duration.zero;
     final total = duration.inMilliseconds;
 
-    final live = total > 0 ? (position.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
+    final live =
+        total > 0 ? (position.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
     final value = _dragValue ?? live;
     final shown = _dragValue == null
         ? position
         : Duration(milliseconds: (total * _dragValue!).round());
 
-    final faded = Colors.white.withValues(alpha: 0.6);
+    final faded = Colors.white.withValues(alpha: 0.55);
+    const timeStyle = TextStyle(fontSize: 13);
 
     return Column(
       children: [
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            activeTrackColor: Colors.white,
-            inactiveTrackColor: Colors.white.withValues(alpha: 0.25),
-            thumbColor: Colors.white,
-            overlayColor: Colors.white.withValues(alpha: 0.15),
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-            trackShape: const RoundedRectSliderTrackShape(),
-          ),
-          child: Slider(
-            value: value,
-            onChanged: total <= 0 ? null : (v) => setState(() => _dragValue = v),
-            onChangeEnd: total <= 0
-                ? null
-                : (v) async {
-                    await ref
-                        .read(musicPlayerServiceProvider)
-                        .seek(Duration(milliseconds: (total * v).round()));
-                    if (mounted) setState(() => _dragValue = null);
-                  },
+        SizedBox(
+          height: 24,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: Colors.white.withValues(alpha: 0.3),
+              thumbColor: Colors.white,
+              overlayColor: Colors.white.withValues(alpha: 0.12),
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 8,
+                elevation: 0,
+                pressedElevation: 0,
+              ),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              // Explicit shapes replace Material 3's gapped track.
+              trackShape: const RoundedRectSliderTrackShape(),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Slider(
+                value: value,
+                onChanged:
+                    total <= 0 ? null : (v) => setState(() => _dragValue = v),
+                onChangeEnd: total <= 0
+                    ? null
+                    : (v) async {
+                        await ref
+                            .read(musicPlayerServiceProvider)
+                            .seek(Duration(milliseconds: (total * v).round()));
+                        if (mounted) setState(() => _dragValue = null);
+                      },
+              ),
+            ),
           ),
         ),
+        const SizedBox(height: 6),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 22),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(formatDuration(shown), style: TextStyle(color: faded, fontSize: 15)),
-              Text(formatDuration(duration), style: TextStyle(color: faded, fontSize: 15)),
+              Text(formatDuration(shown),
+                  style: timeStyle.copyWith(color: faded)),
+              Text(formatDuration(duration),
+                  style: timeStyle.copyWith(color: faded)),
             ],
           ),
         ),
@@ -522,57 +547,61 @@ class _Controls extends ConsumerWidget {
       queueProvider.select((q) => q.value?.mode ?? PlayMode.playlistLoop),
     );
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          tooltip: mode.label,
-          iconSize: 30,
-          color: Colors.white,
-          icon: Icon(mode.icon),
-          onPressed: () async {
-            await player.cycleMode();
-            if (context.mounted) showMessage(context, mode.next.label);
-          },
-        ),
-        IconButton(
-          tooltip: 'Previous',
-          iconSize: 44,
-          color: Colors.white,
-          icon: const Icon(Icons.skip_previous_rounded),
-          onPressed: player.previous,
-        ),
-        GestureDetector(
-          onTap: player.togglePlayPause,
-          child: Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2.5),
+    Widget slot(Widget child) => Expanded(child: Center(child: child));
+
+    return SizedBox(
+      height: 64,
+      child: Row(
+        children: [
+          slot(IconButton(
+            tooltip: mode.label,
+            iconSize: 24,
+            color: Colors.white,
+            icon: Icon(mode.icon),
+            onPressed: () async {
+              await player.cycleMode();
+              if (context.mounted) showMessage(context, mode.next.label);
+            },
+          )),
+          slot(IconButton(
+            tooltip: 'Previous',
+            iconSize: 30,
+            color: Colors.white,
+            icon: const Icon(Icons.skip_previous_rounded),
+            onPressed: player.previous,
+          )),
+          slot(GestureDetector(
+            onTap: player.togglePlayPause,
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.6),
+              ),
+              child: Icon(
+                playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
             ),
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 46,
-            ),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Next',
-          iconSize: 44,
-          color: Colors.white,
-          icon: const Icon(Icons.skip_next_rounded),
-          onPressed: player.next,
-        ),
-        IconButton(
-          tooltip: 'Queue',
-          iconSize: 30,
-          color: Colors.white,
-          icon: const Icon(Icons.queue_music_rounded),
-          onPressed: () => showQueueSheet(context),
-        ),
-      ],
+          )),
+          slot(IconButton(
+            tooltip: 'Next',
+            iconSize: 30,
+            color: Colors.white,
+            icon: const Icon(Icons.skip_next_rounded),
+            onPressed: player.next,
+          )),
+          slot(IconButton(
+            tooltip: 'Queue',
+            iconSize: 24,
+            color: Colors.white,
+            icon: const Icon(Icons.queue_music_rounded),
+            onPressed: () => showQueueSheet(context),
+          )),
+        ],
+      ),
     );
   }
 }

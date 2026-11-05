@@ -42,14 +42,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
+        bottom: false,
         child: Stack(
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _header(),
+                const SizedBox(height: 12),
                 _quickCards(),
+                const SizedBox(height: 14),
                 _tabBar(),
                 Expanded(
                   child: TabBarView(
@@ -74,68 +78,97 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ],
         ),
       ),
+      bottomNavigationBar: const _LibraryNavBar(),
     );
   }
 
   // ------------------------------------------------------------- header
 
+  /// "Library" 26sp bold, then search / add / profile icons 48dp apart.
   Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-      child: Row(
-        children: [
-          const Text(
-            'Library',
-            style: TextStyle(
-              fontSize: 34,
-              fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.fromLTRB(16, 18, 4, 0),
+      child: SizedBox(
+        height: 48,
+        child: Row(
+          children: [
+            const Text(
+              'Library',
+              style: TextStyle(
+                fontSize: 27,
+                height: 1.1,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Search',
+              iconSize: 24,
               color: AppColors.textPrimary,
-            ),
-          ),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Search',
-            iconSize: 28,
-            icon: const Icon(Icons.search_rounded),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SearchScreen()),
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Add music',
-            icon: const Icon(Icons.add_rounded, size: 28),
-            onSelected: _onMenu,
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'scan', child: Text('Scan a music folder')),
-              PopupMenuItem(value: 'files', child: Text('Import files')),
-              PopupMenuItem(
-                value: 'review',
-                child: Text('Import one song (edit details)'),
+              icon: const Icon(Icons.search),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
               ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'dupes',
-                child: Text('Remove duplicate songs'),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Add music',
+              icon: const Icon(
+                Icons.library_add_outlined,
+                size: 23,
+                color: AppColors.textPrimary,
               ),
-              PopupMenuItem(value: 'clear', child: Text('Clear Recent')),
-            ],
-          ),
-        ],
+              onSelected: _onMenu,
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'scan', child: Text('Scan a music folder')),
+                PopupMenuItem(value: 'files', child: Text('Import files')),
+                PopupMenuItem(
+                  value: 'review',
+                  child: Text('Import one song (edit details)'),
+                ),
+              ],
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Settings',
+              onSelected: _onMenu,
+              icon: Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE3E3E8),
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  size: 20,
+                  color: Color(0xFF9A9AA0),
+                ),
+              ),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'dupes',
+                  child: Text('Remove duplicate songs'),
+                ),
+                PopupMenuItem(value: 'clear', child: Text('Clear Recent')),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _quickCards() {
     return SizedBox(
-      height: 112,
+      height: 80,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           _QuickCard(
             icon: Icons.favorite_rounded,
-            color: const Color(0xFFFF4D67),
+            color: const Color(0xFFFF4F6A),
             label: 'Favorites',
             onTap: () => _open(
               SongListScreen(
@@ -146,8 +179,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           ),
           _QuickCard(
-            icon: Icons.schedule_rounded,
-            color: const Color(0xFFFF9F43),
+            icon: Icons.watch_later_rounded,
+            color: const Color(0xFFFF9A3C),
             label: 'Recent',
             onTap: () => _open(
               SongListScreen(
@@ -158,8 +191,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           ),
           _QuickCard(
-            icon: Icons.folder_open_rounded,
-            color: const Color(0xFF8B6CFF),
+            icon: Icons.folder_rounded,
+            color: const Color(0xFF9B6BFF),
             label: 'Scan',
             onTap: _scanFolder,
           ),
@@ -168,27 +201,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
+  /// 17sp tabs, black selected with a short 2dp underline, grey others.
   Widget _tabBar() {
-    return TabBar(
-      controller: _tabs,
-      isScrollable: true,
-      tabAlignment: TabAlignment.start,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      labelColor: AppColors.textPrimary,
-      unselectedLabelColor: AppColors.textSecondary,
-      labelStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-      unselectedLabelStyle: const TextStyle(fontSize: 18),
-      indicatorColor: AppColors.textPrimary,
-      indicatorSize: TabBarIndicatorSize.label,
-      indicatorWeight: 3,
-      dividerColor: Colors.transparent,
-      tabs: const [
-        Tab(text: 'Tracks'),
-        Tab(text: 'Albums'),
-        Tab(text: 'Playlists'),
-        Tab(text: 'Artists'),
-        Tab(text: 'Folders'),
-      ],
+    return SizedBox(
+      height: 40,
+      child: TabBar(
+        controller: _tabs,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        padding: const EdgeInsets.only(left: 6),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 10),
+        labelColor: AppColors.textPrimary,
+        unselectedLabelColor: AppColors.textSecondary,
+        labelStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
+        unselectedLabelStyle:
+            const TextStyle(fontSize: 17, fontWeight: FontWeight.w400),
+        indicator: const UnderlineTabIndicator(
+          borderSide: BorderSide(width: 2.5, color: AppColors.textPrimary),
+          borderRadius: BorderRadius.all(Radius.circular(2)),
+        ),
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        tabs: const [
+          Tab(text: 'Tracks'),
+          Tab(text: 'Albums'),
+          Tab(text: 'Playlists'),
+          Tab(text: 'Artists'),
+          Tab(text: 'Folders'),
+        ],
+      ),
     );
   }
 
@@ -372,29 +414,62 @@ class _QuickCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.only(right: 8),
       child: Material(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: SizedBox(
-            width: 104,
+            width: 76,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, color: color, size: 40),
-                const SizedBox(height: 8),
+                Icon(icon, color: color, size: 32),
+                const SizedBox(height: 6),
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 13,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Single "Library" item with a headphones icon, as in the reference.
+class _LibraryNavBar extends StatelessWidget {
+  const _LibraryNavBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 54,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.headphones_outlined, size: 24, color: AppColors.textPrimary),
+              SizedBox(height: 2),
+              Text(
+                'Library',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -482,7 +557,7 @@ class _TracksTab extends ConsumerWidget {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 110),
+          padding: const EdgeInsets.only(bottom: 80),
           itemCount: songs.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
@@ -491,7 +566,7 @@ class _TracksTab extends ConsumerWidget {
                 onShuffle: () => playFromList(context, ref, songs, 0, shuffle: true),
                 trailing: PopupMenuButton<SongSort>(
                   tooltip: 'Sort',
-                  icon: const Icon(Icons.sort_rounded, size: 28),
+                  icon: const Icon(Icons.menu_rounded, size: 24, color: AppColors.textPrimary),
                   initialValue: sort,
                   onSelected: ref.read(songSortProvider.notifier).set,
                   itemBuilder: (_) => [
@@ -575,24 +650,31 @@ class _GroupsTab extends ConsumerWidget {
         if (groups.isEmpty) return const _EmptyLibrary();
 
         return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 110),
+          padding: const EdgeInsets.only(bottom: 80),
           itemCount: groups.length + 1,
           itemBuilder: (context, i) {
             if (i == 0) {
               return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${groups.length} $_noun',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
+                    SizedBox(
+                      height: 52,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${groups.length} $_noun',
+                          style: const TextStyle(
+                            fontSize: 17,
+                            color: Color(0xFFB0B0B5),
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    const Divider(height: 1),
+                    const SizedBox(height: 4),
+                    const Divider(height: 1, thickness: 0.6, color: AppColors.divider),
+                    const SizedBox(height: 4),
                   ],
                 ),
               );
@@ -651,31 +733,35 @@ class _GroupTile extends StatelessWidget {
             height: 56,
             decoration: BoxDecoration(
               color: AppColors.card,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: const Color(0xFFFFB020), size: 32),
+            child: Icon(icon, color: const Color(0xFFFFB020), size: 30),
           )
         : ArtworkImage(
             artworkPath: group.artworkPath,
             seedId: group.id,
             size: 56,
+            borderRadius: 8,
           );
 
     if (showDisc) {
+      // A record peeking out 8dp to the right of the cover.
       art = SizedBox(
-        width: 70,
+        width: 64,
         height: 56,
         child: Stack(
           children: [
             Positioned(
               right: 0,
-              top: 2,
+              top: 0,
               child: Container(
-                width: 52,
-                height: 52,
+                width: 56,
+                height: 56,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF262626),
+                  gradient: RadialGradient(
+                    colors: [Color(0xFF3A3A3A), Color(0xFF1E1E1E)],
+                  ),
                 ),
               ),
             ),
@@ -687,14 +773,16 @@ class _GroupTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      child: SizedBox(
+        height: 72,
         child: Row(
           children: [
-            art,
             const SizedBox(width: 16),
+            art,
+            SizedBox(width: showDisc ? 20 : 12),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -702,7 +790,7 @@ class _GroupTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,
                     ),
@@ -718,6 +806,7 @@ class _GroupTile extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 16),
           ],
         ),
       ),

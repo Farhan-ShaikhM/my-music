@@ -40,20 +40,25 @@ class SongTile extends ConsumerWidget {
     final titleColor = isCurrent ? AppColors.accent : AppColors.textPrimary;
     final subColor = isCurrent ? AppColors.accent : AppColors.textSecondary;
 
+    // Sizes measured from the reference screenshots (360dp wide screen):
+    // 56dp art, 71dp row, 16sp title, 14sp subtitle.
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+      child: SizedBox(
+        height: 71,
         child: Row(
           children: [
+            const SizedBox(width: 16),
             ArtworkImage(
               artworkPath: song.localArtworkPath,
               seedId: song.id,
               size: 56,
+              borderRadius: 8,
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -62,21 +67,26 @@ class SongTile extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      height: 1.25,
+                      fontWeight: FontWeight.w400,
                       color: titleColor,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.smartphone_outlined, size: 13, color: subColor),
-                      const SizedBox(width: 4),
+                      Icon(Icons.smartphone_outlined, size: 11, color: subColor),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 13, color: subColor),
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.2,
+                            color: subColor,
+                          ),
                         ),
                       ),
                     ],
@@ -84,16 +94,24 @@ class SongTile extends ConsumerWidget {
                 ],
               ),
             ),
-            IconButton(
-              tooltip: 'More',
-              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
-              onPressed: () => showSongOptionsSheet(
-                context,
-                song,
-                extraActionLabel: extraActionLabel,
-                onExtraAction: onExtraAction,
+            SizedBox(
+              width: 48,
+              child: IconButton(
+                tooltip: 'More',
+                iconSize: 22,
+                icon: const Icon(
+                  Icons.more_vert,
+                  color: Color(0xFFB0B0B5),
+                ),
+                onPressed: () => showSongOptionsSheet(
+                  context,
+                  song,
+                  extraActionLabel: extraActionLabel,
+                  onExtraAction: onExtraAction,
+                ),
               ),
             ),
+            const SizedBox(width: 4),
           ],
         ),
       ),
@@ -117,55 +135,59 @@ class ShuffleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
       child: Column(
         children: [
-          Row(
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(24),
-                onTap: count == 0 ? null : onShuffle,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: AppColors.accent,
-                        borderRadius: BorderRadius.circular(18),
+          SizedBox(
+            height: 52,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: count == 0 ? null : onShuffle,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 26,
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Shuffle',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Shuffle',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                      const SizedBox(width: 8),
+                      Text(
+                        '$count track(s)',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          color: Color(0xFFB0B0B5),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '$count track(s)',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Spacer(),
-              if (trailing != null) trailing!,
-            ],
+                const Spacer(),
+                if (trailing != null) trailing!,
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
+          const SizedBox(height: 4),
+          const Divider(height: 1, thickness: 0.6, color: AppColors.divider),
+          const SizedBox(height: 4),
         ],
       ),
     );
