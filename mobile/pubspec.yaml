@@ -1,5 +1,5 @@
 name: mobile
-description: "A new Flutter project."
+description: "Offline music player for your own audio files."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -43,6 +43,10 @@ dependencies:
   crypto: ^3.0.7
   image_picker: ^1.2.3
   just_audio: ^0.10.6
+  # Notification / lock-screen controls and screen-off playback.
+  just_audio_background: ^0.0.1-beta.17
+  # Asks for "Music and audio" access before scanning a folder.
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:

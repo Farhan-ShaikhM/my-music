@@ -1,154 +1,137 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../library/models/song.dart';
-import '../../../library/providers/library_providers.dart';
-import '../../providers/music_player_provider.dart';
+import '../../../../app/app_theme.dart';
 import '../../../library/presentation/widgets/artwork_image.dart';
+import '../../providers/player_providers.dart';
 import '../screens/now_playing_screen.dart';
+import 'queue_sheet.dart';
 
+/// Floating card above the list: artwork, title, play/pause inside a
+/// progress ring, and the queue button. Hidden when nothing is loaded.
 class MiniPlayer extends ConsumerWidget {
-  final Song song;
+  /// Dark variant for the lyric page on top of the coloured background.
+  final bool onDark;
 
-  const MiniPlayer({
-    super.key,
-    required this.song,
-  });
+  const MiniPlayer({super.key, this.onDark = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isPlayingAsync = ref.watch(playerPlayingProvider);
+    final song = ref.watch(currentSongProvider);
 
-    return Material(
-      elevation: 8,
-      child: InkWell(
-        onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => NowPlayingScreen(song: song),
-    ),
-  );
-},
-        child: SizedBox(
-          height: 72,
-          child: Row(
-            children: [
-              const SizedBox(width: 8),
+    if (song == null) {
+      return const SizedBox.shrink();
+    }
 
-              ArtworkImage(
-                artworkPath: song.localArtworkPath,
-                size: 56,
-              ),
+    final background =
+        onDark ? Colors.black.withValues(alpha: 0.22) : const Color(0xFFF0F0F3);
+    final textColor = onDark ? Colors.white : AppColors.textPrimary;
 
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _ArtistName(song: song),
-                  ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        elevation: onDark ? 0 : 2,
+        shadowColor: Colors.black26,
+        child: InkWell(
+          onTap: onDark ? null : () => openNowPlaying(context),
+          child: SizedBox(
+            height: 72,
+            child: Row(
+              children: [
+                ArtworkImage(
+                  artworkPath: song.localArtworkPath,
+                  seedId: song.id,
+                  size: 72,
+                  borderRadius: 0,
                 ),
-              ),
-
-              isPlayingAsync.when(
-                loading: () => const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 16, color: textColor),
                   ),
                 ),
-                error: (_, _) => IconButton(
-                  icon: const Icon(Icons.play_arrow),
-                  onPressed: () => _play(ref),
-                ),
-                data: (isPlaying) {
-                  return IconButton(
-                    icon: Icon(
-                      isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow,
-                    ),
-                    onPressed: () async {
-                      final player =
-                          ref.read(musicPlayerServiceProvider);
-
-                      if (isPlaying) {
-                        await player.pause();
-                      } else {
-                        await player.resume();
-                      }
-                    },
-                  );
-                },
-              ),
-
-              const SizedBox(width: 4),
-            ],
+                _PlayPauseRing(color: textColor),
+                if (!onDark)
+                  IconButton(
+                    tooltip: 'Queue',
+                    iconSize: 30,
+                    icon: Icon(Icons.queue_music_rounded, color: textColor),
+                    onPressed: () => showQueueSheet(context),
+                  ),
+                const SizedBox(width: 8),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-
-  Future<void> _play(WidgetRef ref) async {
-    final player = ref.read(musicPlayerServiceProvider);
-    await player.playSong(song);
-  }
 }
 
-class _ArtistName extends ConsumerWidget {
-  final Song song;
+class _PlayPauseRing extends ConsumerWidget {
+  final Color color;
 
-  const _ArtistName({
-    required this.song,
-  });
+  const _PlayPauseRing({required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final artistsAsync =
-        ref.watch(songArtistsProvider(song.id));
+    final playing = ref.watch(playerPlayingProvider).value ?? false;
+    final progress = ref.watch(playerProgressProvider);
 
-    return artistsAsync.when(
-      loading: () => const Text(
-        'Loading artist...',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    return IconButton(
+      tooltip: playing ? 'Pause' : 'Play',
+      onPressed: () =>
+          ref.read(musicPlayerServiceProvider).togglePlayPause(),
+      icon: SizedBox(
+        width: 40,
+        height: 40,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox.expand(
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 2.5,
+                color: color,
+                backgroundColor: color.withValues(alpha: 0.18),
+              ),
+            ),
+            Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: color,
+              size: 24,
+            ),
+          ],
+        ),
       ),
-      error: (_, _) => const Text(
-        'Unknown artist',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      data: (artists) {
-        if (artists.isEmpty) {
-          return const Text(
-            'Unknown artist',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-        }
-
-        return Text(
-          artists.map((artist) => artist.name).join(', '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        );
-      },
     );
   }
+}
+
+void openNowPlaying(BuildContext context) {
+  Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (_, _, _) => const NowPlayingScreen(),
+      transitionsBuilder: (_, animation, _, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+
+        return SlideTransition(
+          position: Tween(begin: const Offset(0, 1), end: Offset.zero)
+              .animate(curved),
+          child: child,
+        );
+      },
+    ),
+  );
 }

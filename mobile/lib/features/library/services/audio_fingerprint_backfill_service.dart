@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import '../repositories/song_repository.dart';
-import '../../../../../data/files/audio_fingerprint_service.dart';
+import '../../../data/files/audio_fingerprint_service.dart';
 
 class AudioFingerprintBackfillService {
   final SongRepository songRepository;

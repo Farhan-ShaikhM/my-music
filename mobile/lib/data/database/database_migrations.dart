@@ -15,6 +15,7 @@ class DatabaseMigrations {
         FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
       )
     ''');
+    await _createV6Tables(db);
   }
 
  static Future<void> onUpgrade(
@@ -59,7 +60,58 @@ class DatabaseMigrations {
       WHERE artist_id IS NOT NULL
     ''');
   }
+  if (oldVersion < 6) {
+    try {
+      await db.execute('ALTER TABLE songs ADD COLUMN source_path TEXT');
+    } catch (e) {
+      // Column might already exist
+    }
+    await _createV6Tables(db);
+
+    // Foreign keys are not enforced by sqflite, so earlier deletes left
+    // orphan artist links behind. Clean them up once.
+    await db.execute(
+      'DELETE FROM song_artists WHERE song_id NOT IN (SELECT id FROM songs)',
+    );
+  }
 }
+
+  /// Favorites, play history and playlists (added in v6).
+  static Future<void> _createV6Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS favorites (
+        song_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS play_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        song_id TEXT NOT NULL,
+        played_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_play_history_song ON play_history(song_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS playlists (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS playlist_songs (
+        playlist_id TEXT NOT NULL,
+        song_id TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (playlist_id, song_id)
+      )
+    ''');
+  }
   static Future<void> _createArtistsTable(Database db) async {
     await db.execute('''
       CREATE TABLE artists (
@@ -113,6 +165,7 @@ class DatabaseMigrations {
         audio_fingerprint TEXT, 
         local_artwork_path TEXT,
         local_lyrics_path TEXT,
+        source_path TEXT,
         download_state TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,

@@ -108,4 +108,30 @@ Future<void> saveArtwork({
   await file.parent.create(recursive: true);
   await file.writeAsBytes(bytes);
 }
+
+  Future<String> getLyricsFilePath(String songId, String extension) async {
+    final directory = await getLyricsDirectory();
+
+    return path.join(directory.path, '$songId.$extension');
+  }
+
+  /// Deletes [filePath] only when it is inside the app's own storage.
+  /// Files the user owns (linked by a folder scan) are never touched.
+  Future<void> deleteOwnedFile(String? filePath) async {
+    if (filePath == null || filePath.isEmpty) {
+      return;
+    }
+
+    final root = await _getApplicationDirectory();
+
+    if (!path.isWithin(root.path, filePath)) {
+      return;
+    }
+
+    final file = File(filePath);
+
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }

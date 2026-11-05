@@ -9,11 +9,14 @@ A cross-platform music app for storing and playing your own audio files, with ly
 
 ## Features
 
-- Play locally stored audio files
-- Display lyrics alongside the playing track
-- Show album artwork for each song
-- Loop a track or playlist
-- [Add others only if built, e.g. playlists, shuffle, seek bar, background playback, file upload]
+- Scan a music folder on the phone and play the songs in place (no second copy), or import files into app storage
+- Library with Tracks, Albums, Playlists, Artists and Folders tabs, plus sorting and search
+- Favorites, Recent (play history) and your own playlists
+- Full-screen player with a spinning record, colours taken from the cover art, seek bar, Playlist Loop / Single Loop / Shuffle
+- Synced lyrics from .lrc files (auto-matched by file name during a scan, or picked by hand); tap a line to jump to it
+- Queue sheet: play next, add to queue, reorder by dragging, remove, clear; History tab
+- Background playback with notification and lock-screen controls
+- Sleep timer, duplicate-song cleanup
 
 ## Tech Stack
 
@@ -21,7 +24,8 @@ A cross-platform music app for storing and playing your own audio files, with ly
 |---|---|
 | Mobile app | Flutter, Dart |
 | Backend | Python, FastAPI |
-| Audio playback | [package name, e.g. just_audio / audioplayers – fill in] |
+| Audio playback | just_audio + just_audio_background |
+| State / storage | Riverpod, sqflite |
 
 ## Project Structure
 

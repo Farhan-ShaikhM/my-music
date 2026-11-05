@@ -14,6 +14,10 @@ class Song {
   final String? audioFingerprint;
   final String? localArtworkPath;
   final String? localLyricsPath;
+
+  /// Original location on the device. For songs scanned from a folder this is
+  /// the file that is played (it is not copied). Null for picker imports.
+  final String? sourcePath;
   final String? downloadState;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -33,6 +37,7 @@ class Song {
     this.localAudioPath,
     this.localArtworkPath,
     this.localLyricsPath,
+    this.sourcePath,
     this.downloadState,
     required this.createdAt,
     required this.updatedAt,
@@ -56,6 +61,7 @@ class Song {
       'audio_fingerprint': audioFingerprint,
       'local_artwork_path': localArtworkPath,
       'local_lyrics_path': localLyricsPath,
+      'source_path': sourcePath,
       'download_state': downloadState,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
@@ -79,9 +85,45 @@ class Song {
       audioFingerprint: map['audio_fingerprint'] as String?,
       localArtworkPath: map['local_artwork_path'] as String?,
       localLyricsPath: map['local_lyrics_path'] as String?,
+      sourcePath: map['source_path'] as String?,
       downloadState: map['download_state'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
+    );
+  }
+
+  /// True for songs found by a folder scan: they play the user's original
+  /// file in place, so the app must never delete that file.
+  bool get isLinked => downloadState == 'linked';
+
+  Duration? get duration =>
+      durationMs == null ? null : Duration(milliseconds: durationMs!);
+
+  Song copyWith({
+    String? title,
+    String? localArtworkPath,
+    String? localLyricsPath,
+  }) {
+    return Song(
+      id: id,
+      title: title ?? this.title,
+      artistId: artistId,
+      albumId: albumId,
+      trackNumber: trackNumber,
+      discNumber: discNumber,
+      durationMs: durationMs,
+      genre: genre,
+      artworkReference: artworkReference,
+      cloudAudioReference: cloudAudioReference,
+      cloudLyricsReference: cloudLyricsReference,
+      localAudioPath: localAudioPath,
+      audioFingerprint: audioFingerprint,
+      localArtworkPath: localArtworkPath ?? this.localArtworkPath,
+      localLyricsPath: localLyricsPath ?? this.localLyricsPath,
+      sourcePath: sourcePath,
+      downloadState: downloadState,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 }

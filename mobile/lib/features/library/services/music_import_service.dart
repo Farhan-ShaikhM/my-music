@@ -1,12 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
+import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 
-import '../../../../../data/files/audio_fingerprint_service.dart';
-import '../../../../../data/files/local_file_service.dart';
+import '../../../data/files/audio_fingerprint_service.dart';
+import '../../../data/files/local_file_service.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/import_song_draft.dart';
@@ -148,7 +150,41 @@ class MusicImportService {
     );
   }
 
-  Future<Song> importSong(String sourcePath) async {
+  /// Picks several audio files and returns their paths (no review screen).
+  Future<List<String>> pickSongsForBulkImport() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.audio,
+      allowMultiple: true,
+      withData: false,
+    );
+
+    if (result == null) {
+      return const [];
+    }
+
+    return [
+      for (final file in result.files)
+        if (file.path != null) file.path!,
+    ];
+  }
+
+  /// Imports one file using its tags.
+  ///
+  /// With [link] false the file is copied into app storage (picker imports:
+  /// Android only gives the app a temporary copy). With [link] true the song
+  /// plays the original file in place, which is what a folder scan uses so
+  /// 300+ songs are not stored twice.
+  Future<Song> importSong(String sourcePath, {bool link = false}) async {
+    if (link) {
+      final existingByPath = await songRepository.getSongByLocalPath(
+        sourcePath,
+      );
+
+      if (existingByPath != null) {
+        throw DuplicateSongException(existingByPath);
+      }
+    }
+
     final metadata = await readMetadata(sourcePath);
 
     final fingerprint = await audioFingerprintService.calculateFingerprint(
@@ -184,77 +220,122 @@ class MusicImportService {
       album = await _findOrCreateAlbum(albumName, primaryArtist?.id);
     }
 
-    final songId = _createId(
-      sourcePath,
-      title,
-      primaryArtist?.name,
-    );
+    // The fingerprint makes the id stable and unique per audio file.
+    final songId = 'song-${fingerprint.substring(0, 20)}';
 
     final extension = path.extension(sourcePath).replaceFirst('.', '');
 
     String? localArtworkPath;
+    String? copiedAudioPath;
+    String? copiedLyricsPath;
 
-    if (metadata.pictures.isNotEmpty) {
-      final picture = metadata.pictures.first;
+    try {
+      if (metadata.pictures.isNotEmpty) {
+        final picture = metadata.pictures.first;
 
-      final artworkExtension = _extensionFromMimeType(picture.mimetype);
+        final artworkExtension = _extensionFromMimeType(picture.mimetype);
 
-      localArtworkPath = await localFileService.getArtworkFilePath(
-        songId,
-        artworkExtension,
+        localArtworkPath = await localFileService.getArtworkFilePath(
+          songId,
+          artworkExtension,
+        );
+
+        await localFileService.saveArtwork(
+          bytes: picture.bytes,
+          destinationPath: localArtworkPath,
+        );
+      }
+
+      final String localAudioPath;
+
+      if (link) {
+        localAudioPath = sourcePath;
+      } else {
+        copiedAudioPath = await localFileService.getMusicFilePath(
+          songId,
+          extension,
+        );
+
+        await localFileService.copyMusicFile(
+          sourcePath: sourcePath,
+          destinationPath: copiedAudioPath,
+        );
+
+        localAudioPath = copiedAudioPath;
+      }
+
+      // Auto-match lyrics: "Song.mp3" next to "Song.lrc".
+      final matchingLyrics = await _findSiblingLyrics(sourcePath);
+
+      if (matchingLyrics != null) {
+        copiedLyricsPath = await localFileService.getLyricsFilePath(
+          songId,
+          'lrc',
+        );
+        await File(matchingLyrics).copy(copiedLyricsPath);
+      }
+
+      final now = DateTime.now();
+
+      final song = Song(
+        id: songId,
+        title: title,
+        artistId: primaryArtist?.id,
+        albumId: album?.id,
+        trackNumber: metadata.trackNumber,
+        discNumber: metadata.discNumber,
+        durationMs: metadata.duration?.inMilliseconds,
+        genre: metadata.genres.isNotEmpty
+            ? _normalizeText(metadata.genres.first)
+            : null,
+        artworkReference: null,
+        cloudAudioReference: null,
+        cloudLyricsReference: null,
+        localAudioPath: localAudioPath,
+        audioFingerprint: fingerprint,
+        localArtworkPath: localArtworkPath,
+        localLyricsPath: copiedLyricsPath,
+        sourcePath: link ? sourcePath : null,
+        downloadState: link ? 'linked' : 'available_offline',
+        createdAt: now,
+        updatedAt: now,
       );
 
-      await localFileService.saveArtwork(
-        bytes: picture.bytes,
-        destinationPath: localArtworkPath,
-      );
+      await songRepository.insertSong(song);
+
+      for (final artist in artists) {
+        await songArtistRepository.addArtistToSong(
+          songId: song.id,
+          artistId: artist.id,
+        );
+      }
+
+      return song;
+    } catch (_) {
+      // Remove anything this attempt created; never the user's own file.
+      await localFileService.deleteOwnedFile(localArtworkPath);
+      await localFileService.deleteOwnedFile(copiedAudioPath);
+      await localFileService.deleteOwnedFile(copiedLyricsPath);
+      rethrow;
+    }
+  }
+
+  Future<String?> _findSiblingLyrics(String audioPath) async {
+    final base = path.withoutExtension(audioPath);
+
+    for (final ext in const ['.lrc', '.LRC']) {
+      final candidate = File('$base$ext');
+
+      try {
+        if (await candidate.exists()) {
+          return candidate.path;
+        }
+      } catch (_) {
+        // No permission to look; skip.
+      }
     }
 
-    final localAudioPath = await localFileService.getMusicFilePath(
-      songId,
-      extension,
-    );
-
-    await localFileService.copyMusicFile(
-      sourcePath: sourcePath,
-      destinationPath: localAudioPath,
-    );
-
-    final now = DateTime.now();
-
-    final song = Song(
-      id: songId,
-      title: title,
-      artistId: primaryArtist?.id,
-      albumId: album?.id,
-      trackNumber: metadata.trackNumber,
-      discNumber: metadata.discNumber,
-      durationMs: metadata.duration?.inMilliseconds,
-      genre: metadata.genres.isNotEmpty
-          ? _normalizeText(metadata.genres.first)
-          : null,
-      artworkReference: null,
-      cloudAudioReference: null,
-      cloudLyricsReference: null,
-      localAudioPath: localAudioPath,
-      audioFingerprint: fingerprint,
-      localArtworkPath: localArtworkPath,
-      localLyricsPath: null,
-      downloadState: 'available_offline',
-      createdAt: now,
-      updatedAt: now,
-    );
-
-    await songRepository.insertSong(song);
-
-    for (final artist in artists) {
-      await songArtistRepository.addArtistToSong(
-        songId: song.id,
-        artistId: artist.id,
-      );
-    }
-
-    return song;
+    return null;
   }
 
   Future<reader.AudioMetadata> readMetadata(String filePath) async {
@@ -329,11 +410,7 @@ class MusicImportService {
     // 5. Create song ID
     // --------------------------------
 
-    final songId = _createId(
-      draft.sourcePath,
-      draft.title,
-      primaryArtist?.name,
-    );
+    final songId = 'song-${fingerprint.substring(0, 20)}';
 
     // --------------------------------
     // 6. Copy audio
@@ -526,12 +603,10 @@ class MusicImportService {
     return normalized.isEmpty ? null : normalized;
   }
 
-  String _createId(String filePath, String title, String? artist) {
-    return _createSimpleId('song', '$filePath|$title|$artist');
-  }
-
+  /// Stable across app runs and Dart versions (String.hashCode is not
+  /// guaranteed to be), and 64 bits instead of 32 to avoid collisions.
   String _createSimpleId(String prefix, String value) {
-    final hash = value.hashCode.toUnsigned(32).toRadixString(16);
+    final hash = sha1.convert(utf8.encode(value)).toString().substring(0, 16);
 
     return '$prefix-$hash';
   }

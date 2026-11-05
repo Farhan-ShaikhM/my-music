@@ -1,326 +1,578 @@
-import 'package:flutter/material.dart' hide RepeatMode;
+import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../app/app_theme.dart';
 import '../../../library/models/song.dart';
-import '../../../library/presentation/widgets/artwork_image.dart';
+import '../../../library/presentation/widgets/song_options_sheet.dart';
 import '../../../library/providers/library_providers.dart';
-import '../../providers/music_player_provider.dart';
-import '../../providers/player_queue_provider.dart';
-import '../../models/repeat_mode.dart';
-import '../../providers/player_repeat_provider.dart';
-import '../../providers/player_shuffle_provider.dart';
+import '../../../library/services/library_actions.dart';
+import '../../models/play_mode.dart';
+import '../../providers/player_providers.dart';
+import '../widgets/lyrics_view.dart';
+import '../widgets/mini_player.dart';
+import '../widgets/queue_sheet.dart';
+import '../widgets/vinyl_disc.dart';
 
-class NowPlayingScreen extends ConsumerWidget {
-  final Song song;
+/// Background colours taken from the cover art, if the song has one.
+final _artworkGradientProvider =
+    FutureProvider.family<List<Color>?, String>((ref, artworkPath) async {
+  final file = File(artworkPath);
 
-  const NowPlayingScreen({super.key, required this.song});
+  if (!await file.exists()) return null;
 
-  Future<void> _playSong(WidgetRef ref, Song song) async {
-    final player = ref.read(musicPlayerServiceProvider);
+  final scheme = await ColorScheme.fromImageProvider(
+    provider: ResizeImage(FileImage(file), width: 96, height: 96),
+  );
 
-    await player.playSong(song);
-
-    ref.read(currentSongProvider.notifier).setSong(song);
+  Color tone(Color color, double lightness) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withLightness(lightness)
+        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+        .toColor();
   }
 
-  // New combined cycle button: Loop Playlist -> Loop Song -> Shuffle
-  Widget _buildModeButton(
-    BuildContext context,
-    WidgetRef ref,
-    bool isShuffle,
-    RepeatMode repeatMode,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
+  return [tone(scheme.primary, 0.42), tone(scheme.tertiary, 0.30)];
+});
 
-    Widget icon;
-    String tooltip;
+/// Full-screen player with COVER and LYRIC pages, like the phone's player.
+class NowPlayingScreen extends ConsumerStatefulWidget {
+  const NowPlayingScreen({super.key});
 
-    // Determine current visual state
-    if (isShuffle) {
-      tooltip = 'Shuffle';
-      icon = Icon(Icons.shuffle, color: colorScheme.primary);
-    } else if (repeatMode == RepeatMode.song) {
-      tooltip = 'Repeat one';
-      icon = Icon(Icons.repeat_one, color: colorScheme.primary);
-    } else {
-      // Default fallback is Repeat All
-      tooltip = 'Repeat all';
-      icon = Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          Icon(Icons.repeat, color: colorScheme.primary),
-          Positioned(
-            right: -6,
-            bottom: -6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 3,
-                vertical: 1,
-              ),
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'ALL',
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onPrimary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+  @override
+  ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
+}
 
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: () {
-        final repeatNotifier = ref.read(playerRepeatProvider.notifier);
-        final shuffleNotifier = ref.read(playerShuffleProvider.notifier);
+class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
+  final _pages = PageController();
+  int _page = 0;
 
-        if (isShuffle) {
-          // Current: Shuffle -> Next: Loop Playlist
-          shuffleNotifier.setEnabled(false);
-          repeatNotifier.setMode(RepeatMode.playlist);
-        } else if (repeatMode == RepeatMode.song) {
-          // Current: Loop Song -> Next: Shuffle
-          // We set repeat to playlist here so the shuffled queue loops endlessly
-          repeatNotifier.setMode(RepeatMode.playlist); 
-          shuffleNotifier.setEnabled(true);
-        } else {
-          // Current: Loop Playlist -> Next: Loop Song
-          shuffleNotifier.setEnabled(false);
-          repeatNotifier.setMode(RepeatMode.song);
-        }
-      },
-      icon: icon,
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int page) {
+    _pages.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
     );
   }
 
+  List<Color> _gradientFor(Song song) {
+    final artwork = song.localArtworkPath;
+
+    if (artwork != null && artwork.isNotEmpty) {
+      final fromArt = ref.watch(_artworkGradientProvider(artwork)).value;
+      if (fromArt != null) return fromArt;
+    }
+
+    return SongPalette.backgroundFor(song.id);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentSong = ref.watch(currentSongProvider);
-    final displayedSong = currentSong ?? song;
+  Widget build(BuildContext context) {
+    final song = ref.watch(currentSongProvider);
 
-    final repeatMode = ref.watch(playerRepeatProvider);
-    final isShuffle = ref.watch(playerShuffleProvider);
+    if (song == null) {
+      // The queue was cleared while this screen was open.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+      });
+      return const Scaffold(backgroundColor: Colors.black);
+    }
 
-    final artistsAsync = ref.watch(songArtistsProvider(displayedSong.id));
-    final isPlayingAsync = ref.watch(playerPlayingProvider);
-    final positionAsync = ref.watch(playerPositionProvider);
-    final durationAsync = ref.watch(playerDurationProvider);
+    final colors = _gradientFor(song);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Now Playing')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 600),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
+          ),
+        ),
+        child: SafeArea(
           child: Column(
             children: [
-              const Spacer(),
-
-              // Artwork
-              ArtworkImage(
-                artworkPath: displayedSong.localArtworkPath,
-                size: 300,
+              _TopBar(
+                page: _page,
+                onSelect: _goTo,
+                song: song,
               ),
-
-              const SizedBox(height: 32),
-
-              // Song title
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  displayedSong.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.bold),
+              Expanded(
+                child: PageView(
+                  controller: _pages,
+                  onPageChanged: (page) => setState(() => _page = page),
+                  children: [
+                    _CoverPage(song: song),
+                    Column(
+                      children: [
+                        Expanded(child: LyricsView(song: song)),
+                        const MiniPlayer(onDark: true),
+                        const SizedBox(height: 12),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 8),
-
-              // Artists
-              Align(
-                alignment: Alignment.centerLeft,
-                child: artistsAsync.when(
-                  loading: () => const Text('Loading artist...'),
-                  error: (_, _) => const Text('Unknown artist'),
-                  data: (artists) {
-                    if (artists.isEmpty) {
-                      return const Text('Unknown artist');
-                    }
-
-                    return Text(
-                      artists.map((artist) => artist.name).join(', '),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              // Progress Section
-              positionAsync.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (_, _) => const LinearProgressIndicator(value: 0),
-                data: (position) {
-                  final duration = durationAsync.value ?? Duration.zero;
-
-                  final maxMilliseconds = duration.inMilliseconds;
-                  final positionMilliseconds = position.inMilliseconds;
-
-                  final progress = maxMilliseconds > 0
-                      ? (positionMilliseconds / maxMilliseconds).clamp(0.0, 1.0)
-                      : 0.0;
-
-                  return Column(
-                    children: [
-                      Slider(
-                        value: progress,
-                        onChanged: maxMilliseconds <= 0
-                            ? null
-                            : (value) {
-                                final newPosition = Duration(
-                                  milliseconds:
-                                      (maxMilliseconds * value).round(),
-                                );
-
-                                ref
-                                    .read(musicPlayerServiceProvider)
-                                    .seek(newPosition);
-                              },
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(_formatDuration(position)),
-                          Text(_formatDuration(duration)),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              // Playback & Mode Controls Row
-              isPlayingAsync.when(
-                loading: () => const SizedBox(
-                  height: 64,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (_, _) => const SizedBox(height: 64),
-                data: (isPlaying) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      
-                      // 1. Single combined Mode Button
-                      _buildModeButton(context, ref, isShuffle, repeatMode),
-
-                      // 2. Previous Button
-                      IconButton(
-                        onPressed: () async {
-                          final previousSong = ref
-                              .read(playerQueueProvider.notifier)
-                              .previousSong(
-                                displayedSong.id,
-                                repeatAll: repeatMode == RepeatMode.playlist,
-                              );
-
-                          if (previousSong == null) return;
-
-                          try {
-                            await _playSong(ref, previousSong);
-                          } catch (error) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed: $error')),
-                            );
-                          }
-                        },
-                        iconSize: 36,
-                        icon: const Icon(Icons.skip_previous),
-                      ),
-
-                      // 3. Play / Pause Button
-                      SizedBox(
-                        width: 64,
-                        height: 64,
-                        child: FilledButton(
-                          onPressed: () async {
-                            final player = ref.read(musicPlayerServiceProvider);
-                            if (isPlaying) {
-                              await player.pause();
-                            } else {
-                              await player.resume();
-                            }
-                          },
-                          style: FilledButton.styleFrom(
-                            shape: const CircleBorder(),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Icon(
-                            isPlaying ? Icons.pause : Icons.play_arrow,
-                            size: 32,
-                          ),
-                        ),
-                      ),
-
-                      // 4. Next Button
-                      IconButton(
-                        onPressed: () async {
-                          final nextSong = ref
-                              .read(playerQueueProvider.notifier)
-                              .nextSong(
-                                displayedSong.id,
-                                repeatAll: repeatMode == RepeatMode.playlist,
-                              );
-
-                          if (nextSong == null) return;
-
-                          try {
-                            await _playSong(ref, nextSong);
-                          } catch (error) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed: $error')),
-                            );
-                          }
-                        },
-                        iconSize: 36,
-                        icon: const Icon(Icons.skip_next),
-                      ),
-
-                      // 5. Invisible Spacer (Matches the width of the Mode Button to keep Play/Pause centered)
-                      const SizedBox(width: 48), 
-                    ],
-                  );
-                },
-              ),
-
-              const Spacer(),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+class _TopBar extends ConsumerWidget {
+  final int page;
+  final ValueChanged<int> onSelect;
+  final Song song;
+
+  const _TopBar({
+    required this.page,
+    required this.onSelect,
+    required this.song,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Close',
+            iconSize: 34,
+            color: Colors.white,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _pill('COVER', 0),
+                _pill('LYRIC', 1),
+              ],
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: 'More',
+            color: Colors.white,
+            icon: const Icon(Icons.more_vert_rounded),
+            onPressed: () => _showMoreMenu(context, ref, song),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, int index) {
+    final selected = page == index;
+
+    return GestureDetector(
+      onTap: () => onSelect(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 100,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white.withValues(alpha: 0.22) : Colors.transparent,
+          borderRadius: BorderRadius.circular(26),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: selected ? 1 : 0.6),
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMoreMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Song song,
+  ) async {
+    final sleepEnd = ref.read(sleepTimerProvider);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded),
+              title: const Text('Add to playlist'),
+              onTap: () {
+                final messenger = ScaffoldMessenger.of(context);
+                showAddToPlaylistDialog(sheetContext, ref, song, (text) {
+                  messenger.showSnackBar(SnackBar(content: Text(text)));
+                });
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lyrics_outlined),
+              title: const Text('Choose lyric file'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                try {
+                  final added =
+                      await ref.read(libraryActionsProvider).pickLyricsFor(song);
+                  if (added && context.mounted) {
+                    showMessage(context, 'Lyrics added');
+                  }
+                } catch (error) {
+                  if (context.mounted) showMessage(context, '$error');
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bedtime_outlined),
+              title: Text(
+                sleepEnd == null
+                    ? 'Sleep timer'
+                    : 'Sleep timer (stops at ${TimeOfDay.fromDateTime(sleepEnd).format(context)})',
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showSleepTimer(context, ref);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline_rounded),
+              title: const Text('Song info'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showInfo(context, ref, song);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSleepTimer(BuildContext context, WidgetRef ref) {
+    final timer = ref.read(sleepTimerProvider.notifier);
+    const options = [15, 30, 45, 60, 90];
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Stop playing after'),
+        children: [
+          for (final minutes in options)
+            SimpleDialogOption(
+              onPressed: () {
+                timer.start(Duration(minutes: minutes));
+                Navigator.pop(dialogContext);
+              },
+              child: Text('$minutes minutes'),
+            ),
+          SimpleDialogOption(
+            onPressed: () {
+              timer.cancel();
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Turn off', style: TextStyle(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInfo(BuildContext context, WidgetRef ref, Song song) {
+    final index = ref.read(libraryIndexProvider).value;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(song.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Artist: ${index?.artistLabel(song) ?? '-'}'),
+            Text('Album: ${index?.albumLabel(song) ?? '-'}'),
+            Text('Length: ${formatDuration(song.duration)}'),
+            if (song.genre != null) Text('Genre: ${song.genre}'),
+            const SizedBox(height: 8),
+            Text(
+              song.sourcePath ?? song.localAudioPath ?? '',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverPage extends ConsumerWidget {
+  final Song song;
+
+  const _CoverPage({required this.song});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playing = ref.watch(playerPlayingProvider).value ?? false;
+    final artist = ref.watch(
+      libraryIndexProvider.select((i) => i.value?.artistLabel(song) ?? ''),
+    );
+    final isFavorite = ref.watch(isFavoriteProvider(song.id));
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardSize = (constraints.maxWidth - 48)
+            .clamp(0.0, constraints.maxHeight * 0.52)
+            .toDouble();
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              Center(
+                child: Container(
+                  width: cardSize,
+                  height: cardSize,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(36),
+                  ),
+                  alignment: Alignment.center,
+                  child: VinylDisc(
+                    spinning: playing,
+                    artworkPath: song.localArtworkPath,
+                    size: cardSize * 0.68,
+                  ),
+                ),
+              ),
+              const Spacer(flex: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Add to playlist',
+                    iconSize: 32,
+                    color: Colors.white,
+                    icon: const Icon(Icons.playlist_add_rounded),
+                    onPressed: () {
+                      final messenger = ScaffoldMessenger.of(context);
+                      showAddToPlaylistDialog(context, ref, song, (text) {
+                        messenger.showSnackBar(SnackBar(content: Text(text)));
+                      });
+                    },
+                  ),
+                  IconButton(
+                    tooltip: isFavorite ? 'Remove from Favorites' : 'Favorite',
+                    iconSize: 32,
+                    color: isFavorite ? const Color(0xFFFF4D67) : Colors.white,
+                    icon: Icon(
+                      isFavorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                    ),
+                    onPressed: () =>
+                        ref.read(favoritesProvider.notifier).toggle(song.id),
+                  ),
+                ],
+              ),
+              const Spacer(flex: 1),
+              const _SeekBar(),
+              const Spacer(flex: 1),
+              const _Controls(),
+              const Spacer(flex: 2),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SeekBar extends ConsumerStatefulWidget {
+  const _SeekBar();
+
+  @override
+  ConsumerState<_SeekBar> createState() => _SeekBarState();
+}
+
+class _SeekBarState extends ConsumerState<_SeekBar> {
+  /// While dragging, show the drag position instead of the live one.
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final position = ref.watch(playerPositionProvider).value ?? Duration.zero;
+    final duration = ref.watch(playerDurationProvider).value ?? Duration.zero;
+    final total = duration.inMilliseconds;
+
+    final live = total > 0 ? (position.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
+    final value = _dragValue ?? live;
+    final shown = _dragValue == null
+        ? position
+        : Duration(milliseconds: (total * _dragValue!).round());
+
+    final faded = Colors.white.withValues(alpha: 0.6);
+
+    return Column(
+      children: [
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            activeTrackColor: Colors.white,
+            inactiveTrackColor: Colors.white.withValues(alpha: 0.25),
+            thumbColor: Colors.white,
+            overlayColor: Colors.white.withValues(alpha: 0.15),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+            trackShape: const RoundedRectSliderTrackShape(),
+          ),
+          child: Slider(
+            value: value,
+            onChanged: total <= 0 ? null : (v) => setState(() => _dragValue = v),
+            onChangeEnd: total <= 0
+                ? null
+                : (v) async {
+                    await ref
+                        .read(musicPlayerServiceProvider)
+                        .seek(Duration(milliseconds: (total * v).round()));
+                    if (mounted) setState(() => _dragValue = null);
+                  },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(formatDuration(shown), style: TextStyle(color: faded, fontSize: 15)),
+              Text(formatDuration(duration), style: TextStyle(color: faded, fontSize: 15)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Controls extends ConsumerWidget {
+  const _Controls();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final player = ref.read(musicPlayerServiceProvider);
+    final playing = ref.watch(playerPlayingProvider).value ?? false;
+    final mode = ref.watch(
+      queueProvider.select((q) => q.value?.mode ?? PlayMode.playlistLoop),
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          tooltip: mode.label,
+          iconSize: 30,
+          color: Colors.white,
+          icon: Icon(mode.icon),
+          onPressed: () async {
+            await player.cycleMode();
+            if (context.mounted) showMessage(context, mode.next.label);
+          },
+        ),
+        IconButton(
+          tooltip: 'Previous',
+          iconSize: 44,
+          color: Colors.white,
+          icon: const Icon(Icons.skip_previous_rounded),
+          onPressed: player.previous,
+        ),
+        GestureDetector(
+          onTap: player.togglePlayPause,
+          child: Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+            ),
+            child: Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 46,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Next',
+          iconSize: 44,
+          color: Colors.white,
+          icon: const Icon(Icons.skip_next_rounded),
+          onPressed: player.next,
+        ),
+        IconButton(
+          tooltip: 'Queue',
+          iconSize: 30,
+          color: Colors.white,
+          icon: const Icon(Icons.queue_music_rounded),
+          onPressed: () => showQueueSheet(context),
+        ),
+      ],
+    );
   }
 }

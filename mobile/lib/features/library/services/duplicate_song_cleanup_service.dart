@@ -1,13 +1,16 @@
 import '../../../data/files/local_file_service.dart';
+import '../repositories/library_extras_repository.dart';
 import '../repositories/song_repository.dart';
 
 class DuplicateSongCleanupService {
   final SongRepository songRepository;
   final LocalFileService localFileService;
+  final LibraryExtrasRepository extrasRepository;
 
   DuplicateSongCleanupService({
     required this.songRepository,
     required this.localFileService,
+    required this.extrasRepository,
   });
 
   Future<int> removeExactDuplicates() async {
@@ -24,14 +27,13 @@ class DuplicateSongCleanupService {
       }
 
       if (seenFingerprints.contains(fingerprint)) {
-        // Delete redundant local audio file first.
-        final audioPath = song.localAudioPath;
+        // Only files inside the app's storage are deleted; a linked song's
+        // original file stays on the phone.
+        await localFileService.deleteOwnedFile(song.localAudioPath);
+        await localFileService.deleteOwnedFile(song.localArtworkPath);
+        await localFileService.deleteOwnedFile(song.localLyricsPath);
 
-        if (audioPath != null && audioPath.isNotEmpty) {
-          await localFileService.deleteMusicFile(audioPath);
-        }
-
-        // Then remove the redundant database record.
+        await extrasRepository.deleteSongReferences(song.id);
         await songRepository.deleteSong(song.id);
 
         deletedCount++;
